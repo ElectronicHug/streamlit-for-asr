@@ -15,32 +15,42 @@ def send_audio_to_api(audio_file):
         response = requests.post(url, files=files)
         # st.write(response.text)
         if response.status_code == 400:
-            return {"error": "No file was uploaded. Please upload an audio file."}
+            return {"error": "Не знайшов аудіофайл. Спробуйте ще раз."}
         elif response.status_code == 429:
-            return {"error": "API can handle only 1 request at a time. Please try again in 10 seconds."}
+            return {"error": "Забагато запитів. Спробуйте ще раз через 10 секунд."}
         elif response.status_code != 200:
             # Handle other HTTP errors
-            return {"error": f"Failed to process audio. Server responded with status code: {response.status_code}"}
+            return {"error": f"Помилка під час обробки аудіо. Номер помилки: {response.status_code}"}
         return response.json()  # Assuming your API returns JSON and the response was successful
     except requests.RequestException as e:
         # Handle requests exceptions such as connection errors
-        return {"error": f"An error occurred while sending audio to the API: {str(e)}"}
+        return {"error": f"Сталась помилка під час надсилання аудіо до сервера: {str(e)}"}
     finally:
         files['file'].close()
 
 # Title of your app
-st.title('Audio File Processing App')
+st.title('Автоматичне розпізнавання мови')
+
+st.markdown("""
+    ### Інструкція
+        1. Запишіть аудіо або виберіть готовий файл.
+            1.1 Файл повинен бути у форматі .mp3.
+            1.2 Аналізуватись буде лише перших 30 секунд.
+            1.3 Мова аудіо - українська.
+        2. Натисніть кнопку "Надіслати файл на обробку".
+        3. Очікуйте результату розпізнавання.
+            """)
 
 # Audio file selection
 audio_folder = 'data'
 audio_files = list_audio_files(audio_folder)
-selected_file = st.selectbox('Choose an audio file:', audio_files)
+selected_file = st.selectbox('Вибери готовий файл:', audio_files)
 
 # External link to record audio
-st.markdown('Or [record your own audio here](https://online-voice-recorder.com/)', unsafe_allow_html=True)
+st.markdown('Або [запиши своє власне](https://online-voice-recorder.com/)', unsafe_allow_html=True)
 
 # File uploader for user recordings
-uploaded_file = st.file_uploader("Or upload your audio file here (.mp3):", type="mp3")
+uploaded_file = st.file_uploader("Вибрати файл (.mp3):", type="mp3")
 if uploaded_file is not None:
     with open(os.path.join(audio_folder, uploaded_file.name), "wb") as f:
         f.write(uploaded_file.getvalue())
@@ -56,20 +66,25 @@ else:
     audio_data = open(audio_file_to_display, "rb").read()
     
 file_to_send = uploaded_file.name if uploaded_file is not None else selected_file
-if st.button('Send Audio to API'):
+if st.button('Надіслати файл на обробку'):
     st.audio(audio_data)
     st.markdown(f"""
-        ### Sending Audio to API
-        - **Selected file:** `{file_to_send}`
-        - **Processing time:**
-            - Typically, this will take about **20 seconds**.
-            - If it's a cold start, it could take up to **1 minute**.
+        ### Надсилання файлу на обробку
+        - **Обраний файл:** `{file_to_send}`
+        - **Орієнтовний час обробки:**
+            - Зазвичай обробка триває **20 секунд**.
+            - Або якщо сервер спить - це може зайняти до **1 хвилини**.
     """)
-    response = send_audio_to_api(os.path.join(audio_folder, file_to_send))
+    
+    with st.spinner('Обробка ...'):
+        response = send_audio_to_api(os.path.join(audio_folder, file_to_send))
+    
     if 'error' in response:
         st.error(response['error'])
     else:
         st.markdown(f"""
-            ### Response from API
+            ### Результат розпізнавання
             > {response['transcript']}
         """)
+
+
